@@ -69,6 +69,10 @@ logs/
 #  docs/ 是项目实体定位与设计决策记录，含内部口径，不随公开仓分发。
 docs/
 articles/
+# 🔴 [AI-2026-10-09] deploy/ 必须排除：etfarb_lcu_fetcher.service 曾明文写
+#   TELEGRAM_BOT_TOKEN（已在 10-09 打码为 <REDACTED:...>）。systemd unit 属
+#   实例专属配置（含 /home/ubuntu绝对路径），一律不入库。
+deploy/
 .workbuddy/
 .workbuddy-ai/
 .codegraph/
