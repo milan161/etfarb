@@ -1,0 +1,44 @@
+# ============================================================
+# ETFarb 源码仓库（项目根 = src/，物理隔离）
+# D:\Study\ARB\ETFarb 下所有 data/ docs/ articles/ log/ tmp/ 等
+# 都在仓库外，自然不上传。
+# 机密已集中到 D:\Study\ARB\account_info（仓库外），无需逐条忽略。
+# 本文件只管 src/ 内部的敏感/非源码内容。
+# ============================================================
+
+# --- 本地项目指引（含内部口径，不传）---
+agents.md
+# --- 本地代理/VPN 启动脚本（仅本机用，不传）---
+proxy.bat
+
+# --- 实盘/运行时数据库（纵深防御：src 内若误落任何 db 也绝不传）---
+*.db
+*.db-shm
+*.db-wal
+**/*.bak*
+**/*.bundle
+
+# --- 日志（不传）---
+*.log
+
+# --- 构建产物 & 依赖 ---
+__pycache__/
+*.pyc
+node_modules/
+.venv/
+venv/
+dist/
+.vite/
+
+# --- AI 临时调试脚本（不传）---
+_ai_backup/
+scratch/
+
+# --- 续传 session / 内部运行态（不传）---
+.omo/
+.codegraph/
+
+# 说明：src/core/account_private.py 是「无密钥转发垫片」，
+# 仅负责从仓库外的 D:\Study\ARB\account_info 加载真实凭据，
+# 自身不含任何机密 -> 保持被跟踪，确保 clone 后 import 可用。
+# 真实密钥永不进本仓库。
