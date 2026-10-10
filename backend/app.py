@@ -321,8 +321,9 @@ def _get_etf_price(code):
         # 把实时价回写 unified_fund_history 最新行（仅 ETFarb 自有标的；in_arbtest=1 归 arbTest，跳过）
         try:
             conn = get_conn()
+            # [AI-2026-10-09] 打 writer 标识，供事后追查"这行 price 是谁写的"（凌晨批来源排查教训）
             conn.execute(
-                "UPDATE unified_fund_history SET price=? "
+                "UPDATE unified_fund_history SET price=?, writer='etfarb:app.realtime_price' "
                 "WHERE fund_code=? AND date=(SELECT max(date) FROM unified_fund_history WHERE fund_code=?) "
                 "AND fund_code NOT IN (SELECT fund_code FROM fund_profile WHERE in_arbtest=1)",
                 (price, db_code, db_code))
@@ -1170,8 +1171,10 @@ class Handler(SimpleHTTPRequestHandler):
         from urllib.parse import urlparse, parse_qs
         q = parse_qs(urlparse(self.path).query)
         market = (q.get("market", ["A"])[0] or "A").strip().upper()
-        if market not in ("A", "E", "L", "C", "G", "WATCH"):
-            self._json(400, {"error": "market 只能是 A（亚洲）/ E（欧美）/ L（国内LOF）/ C（现金管理）/ G（黄金原油）/ WATCH（关注池）"})
+        # 🔴 F=商品期货（东哥 10-09 拍板）：161226 白银 LOF / 159985 豆粕ETF / 159981 能源化工ETF。
+        #    与 G（黄金原油）的界线 = **境内 vs 境外**：G 是境外油气黄金，F 是境内（上期/大商所/郑商所）商品期货。
+        if market not in ("A", "E", "L", "C", "G", "F", "WATCH"):
+            self._json(400, {"error": "market 只能是 A（亚洲）/ E（欧美）/ L（境内LOF）/ C（现金管理）/ G（黄金原油）/ F（商品期货）/ WATCH（关注池）"})
             return
         # 显示ETF / 显示LOF 复选框（前端「类型」过滤）
         fund_type = (q.get("type", [""])[0] or "").strip().upper()
@@ -1228,8 +1231,10 @@ class Handler(SimpleHTTPRequestHandler):
     def _prewarm_markets(cls):
         import etf_iopv_quote as eiq
         # 主看板 A 权重最高（每轮重建两次），覆盖全部交互视图（含类型过滤子集）
+        # 🔴 2026-10-09 东哥拍板加 F（商品期货）：161226 白银走 lofarb_bridge 引用 LOFarb
+        #   估值，F 市场仅 1 只、装配秒级（bridge 30s 缓存），但若不预热则 F 首屏冷加载会卡。
         order = [("A", None), ("E", None), ("G", None), ("A", "ETF"), ("L", None),
-                 ("A", "LOF"), ("C", None), ("A", None)]
+                 ("A", "LOF"), ("C", None), ("F", None), ("A", None)]
         i = 0
         while True:
             m, ft = order[i % len(order)]

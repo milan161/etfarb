@@ -202,6 +202,9 @@ def ensure_schema():
         # upsert 写 acc=? 报 "no such column: acc"，整个静态估值采集线程异常退出、
         # E/A 净值历史全没写（本机宽表有此列，两端 schema 不一致）。幂等补齐。
         "ALTER TABLE unified_fund_history ADD COLUMN acc REAL",
+        # [AI-2026-10-09] writer 标识列：记录"这行是谁写的"（凌晨批来源排查教训）。
+        # 本机手工 ALTER 已加；此处幂等补齐，保证 ARM 等环境自动同步 schema。
+        "ALTER TABLE unified_fund_history ADD COLUMN writer TEXT",
     ]
     for sql in _ALTERS:
         try:
@@ -212,7 +215,7 @@ def ensure_schema():
     conn.close()
 
 
-def upsert_fund_history(fund_code, date, fields, source=None, conn=None):
+def upsert_fund_history(fund_code, date, fields, source=None, conn=None, writer=None):
     """写 unified_fund_history 的若干列。
 
     🔴 安全约束：只动指定列，绝不整行替换（不用 INSERT OR REPLACE），
@@ -225,13 +228,17 @@ def upsert_fund_history(fund_code, date, fields, source=None, conn=None):
     - source 可选，若提供则一并写入 source 列。
     - conn 可选：传入则复用该连接（调用方负责 commit/close，适用于批量循环，
       避免每日采集为每只基金每行开连接）；不传则本函数自管连接并提交。
+    - [AI-2026-10-10] writer 可选：写入者标识（如 'etfarb:nav_fetcher'），
+      供事后追查"这行是谁写的"（凌晨批来源排查教训）。提供则一并写入 writer 列。
     返回受影响行数。
     """
     if not fields:
         return 0
+    fields = dict(fields)
     if source is not None:
-        fields = dict(fields)
         fields["source"] = source
+    if writer is not None:
+        fields["writer"] = writer
     cols = list(fields.keys())
     own = conn is None
     if own:

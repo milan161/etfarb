@@ -666,6 +666,48 @@ class ETFMarketBoard:
             if _px0 and row["nav"]:
                 row["nav_prem"] = (_px0 / row["nav"] - 1) * 100
 
+            # 🔴 F 商品期货（东哥 10-09 拍板，路 B）：161226 白银估值在 LOFarb（SSE 沪银 AG0
+            #   推流 + 新浪 nf_AG0 双源，已完善），ETFarb 只做**引用**（lofarb_bridge），不重算。
+            #   放在 woody 分支**之前**：161226 in_arbtest=1 本会走 woody continue（估值列全空），
+            #   此处先接 bridge 把 LOFarb 的 rt_val/static_val/溢价搬进来。bridge 不可达/拿不到
+            #   时（LOFarb 没起）降级回 woody 分支原逻辑（仍出门、估值空），不阻断看板。
+            if (p.get("jsl_market") or "") == "F":
+                try:
+                    import lofarb_bridge as _lb
+                except ImportError:
+                    try:
+                        from core import lofarb_bridge as _lb
+                    except Exception:
+                        _lb = None
+                _ref = _lb.get_reference(code) if _lb else None
+                if _ref:
+                    row["lofarb"] = True
+                    row["lofarb_source"] = _ref.get("source")
+                    row["lofarb_category"] = _ref.get("category")
+                    # 实时估值/溢价（盘中 AG0 非交易时段 = LOFarb 留空，前端显「—」，宁缺勿假）
+                    row["iopv"] = _ref.get("rt_val")
+                    row["iopv_prem"] = _ref.get("rt_premium")
+                    # 静态估值（VWAP 口径，盘中恒有）+ 溢价
+                    if _ref.get("static_val") is not None:
+                        row["static_val"] = _ref["static_val"]
+                        _px = row["price"]
+                        if _px:
+                            row["static_prem"] = (_px / _ref["static_val"] - 1) * 100
+                    # 白银比价面板字段（AG0 昨结算价 + COMEX SI 交叉验证，前端「驱动列」用）
+                    row["ag0_price"] = _ref.get("ag0_price")
+                    row["ag0_settlement"] = _ref.get("ag0_settlement")
+                    row["si_val"] = _ref.get("si_val")
+                    row["si_premium"] = _ref.get("si_premium")
+                    # 净值日期（LOFarb 口径 = 最新已公布净值日，与 ETFarb nav_date 同义）
+                    if _ref.get("nav_date"):
+                        row["nav_date"] = _ref["nav_date"]
+                        if _ref.get("nav") is not None:
+                            row["nav"] = _ref["nav"]
+                    stat["lofarb_ref"] = stat.get("lofarb_ref", 0) + 1
+                    rows.append(row)
+                    continue
+                # bridge 拿不到 ⇒ 落到下方 woody 分支（估值空出门），绝不兜底
+
             # 🔴 woody 标记（东哥 2026-09-21）：与 arbTest 重叠的基金，ETFarb 不再
             #   计算自算 IOPV / 实时估值 / 静态估值 / 结算溢价，仅保留官方 IOPV、
             #   净值、指数涨幅等自然字段；估值类列初始即 None，此处直接出门。

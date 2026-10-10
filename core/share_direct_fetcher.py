@@ -465,13 +465,15 @@ class ShareDirectFetcher:
                 new = round(pre - base, 4) if base is not None else None
                 if new is not None:
                     filled += 1
+                # [AI-2026-10-09] 打 writer 标识，供事后追查"这行 shares 是谁写的"（凌晨批来源排查教训）
                 c.execute(
-                    """INSERT INTO unified_fund_history (fund_code, date, shares, shares_added, source, fetched_at)
-                       VALUES (?,?,?,?,?,?)
+                    """INSERT INTO unified_fund_history (fund_code, date, shares, shares_added, source, fetched_at, writer)
+                       VALUES (?,?,?,?,?,?,?)
                        ON CONFLICT(fund_code, date) DO UPDATE SET
                          shares=excluded.shares, shares_added=excluded.shares_added,
-                         source=excluded.source, fetched_at=excluded.fetched_at""",
-                    (code, date_iso, pre, new, source, ts))
+                         source=excluded.source, fetched_at=excluded.fetched_at,
+                         writer=excluded.writer""",
+                    (code, date_iso, pre, new, source, ts, "etfarb:share_direct_fetcher"))
                 written += 1
             c.commit()
         finally:

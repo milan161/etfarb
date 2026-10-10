@@ -36,8 +36,9 @@ def fetch_and_save(fund_code, days=400):
         for _, r in df.iterrows():
             d = r["date"]
             ds = d.strftime("%Y-%m-%d") if hasattr(d, "strftime") else str(d)[:10]
+            # [AI-2026-10-09] 打 writer 标识，供事后追查"这行 nav 是谁写的"（凌晨批来源排查教训）
             db.upsert_fund_history(fund_code, ds, {"nav": float(r["nav"])},
-                                   source="eastmoney", conn=conn)
+                                   source="eastmoney", conn=conn, writer="etfarb:nav_fetcher")
             n += 1
         conn.commit()
     finally:

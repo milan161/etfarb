@@ -140,10 +140,27 @@ def seed_from_json(json_path, db_path):
 # ---------------------------------------------------------------------------
 # Telegram 通知（复用 oil_eod_sampler 标准 Bot API 模式）
 # ---------------------------------------------------------------------------
+def _get_secret(name, default=""):
+    """从 account_info/secrets.env 读取凭据（仓库外保险箱）。缺失返回 default。"""
+    try:
+        import importlib.util as _ilu
+        from pathlib import Path as _Path
+        for cand in (_Path("/home/ubuntu/account_info/secrets.py"),
+                     _Path(r"D:\Study\ARB\account_info\secrets.py")):
+            if cand.exists():
+                spec = _ilu.spec_from_file_location("_unified_secrets", str(cand))
+                m = _ilu.module_from_spec(spec)
+                spec.loader.exec_module(m)
+                return getattr(m, "get_secret", lambda k, d=None: d)(name, default)
+    except Exception:
+        pass
+    return default
+
+
 def notify_telegram(msg):
     """发送 Telegram 通知（东哥机器人，标准 Bot API）。失败不影响主流程。"""
-    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-    chat = os.environ.get("TELEGRAM_CHAT_ID", "")
+    token = _get_secret("TELEGRAM_BOT_TOKEN", "")
+    chat = _get_secret("TELEGRAM_CHAT_ID", "")
     if not token or not chat:
         print("[notify] 未配置 TELEGRAM_BOT_TOKEN/CHAT_ID，跳过发报")
         return

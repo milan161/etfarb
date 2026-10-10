@@ -91,7 +91,8 @@ class ETFQuoteFetcher:
             return 0
         n = 0
         for d, v in rows:
-            upsert_fund_history(code, d, {"price": v}, source=SOURCE)
+            # [AI-2026-10-09] 打 writer 标识，供事后追查"这行 price 是谁写的"（凌晨批来源排查教训）
+            upsert_fund_history(code, d, {"price": v}, source=SOURCE, writer="etfarb:etf_quote")
             n += 1
         return n
 

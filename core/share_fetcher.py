@@ -129,7 +129,9 @@ class ShareFetcher:
         _db.upsert_fund_history(
             code, date,
             {"shares": pre_share, "shares_added": new, "source": source,
-             "fetched_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+             "fetched_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")},
+            # [AI-2026-10-09] 打 writer 标识，供事后追查"这行 shares 是谁写的"
+            writer="etfarb:share_fetcher")
         return {"fund_code": code, "date": date, "pre_share": pre_share, "new_share": new}
 
     def fetch_daily(self, codes=None, date=None, sleep=0.15, verbose=True):

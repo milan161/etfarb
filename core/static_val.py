@@ -210,7 +210,9 @@ def fetch_nav_history(code, db=None, beg="2026-01-01"):
         return 0
     n = 0
     for code_, iso, nav, acc, source in rows:
-        upsert_fund_history(code_, iso, {"nav": nav, "acc": acc, "source": source})
+        # [AI-2026-10-09] 打 writer 标识，供事后追查"这行 nav/acc 是谁写的"（凌晨批来源排查教训）
+        upsert_fund_history(code_, iso, {"nav": nav, "acc": acc, "source": source},
+                            writer="etfarb:static_val")
         n += 1
     c = _db(db)
     try:

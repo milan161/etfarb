@@ -111,6 +111,11 @@
   .col-static-link:hover { text-decoration: underline; }
   .col-static-val { cursor: pointer; }          /* 整格可点（点任意位置看历史） */
   .col-static-val:hover { background: #eef5ff; }
+  /* 商品期货(F) 驱动列：AG0 昨结算价 + SI 交叉验证（ETFarb 引用 LOFarb） */
+  table.mkt tbody td.col-driver { background-color: #f0f9ff !important; }
+  table.mkt thead th.col-driver { background-color: #dbeafe !important; color: #1f2937; text-align: center; }
+  table.mkt tbody tr:hover td.col-driver { background-color: #dbeafe !important; }
+  .col-driver-sub { display: block; font-size: 9px; color: #64748b; font-weight: 400; margin-top: 1px; line-height: 1.1; }
   .pcf-link { color: #2563eb; text-decoration: none; font-weight: 600; white-space: nowrap; }
   .pcf-link:hover { text-decoration: underline; }
   .warn-dot { color: #d97706; font-weight: 700; margin-left: 2px; cursor: help; }
@@ -777,13 +782,14 @@ document.getElementById('staticModal').addEventListener('click', function (e) { 
 var NAV_TABS = [
   { k: 'main', t: '我的关注' },
   { k: 'G', t: '黄金原油' },
+  { k: 'F', t: '商品期货' },   // 境内商品期货：161226 白银(AG0驱动)。159985 豆粕待 LOFarb 落实 M 期货驱动后接入；159981 能化已删
   { k: 'E', t: '欧美' },
   { k: 'A', t: '亚洲' },
   { k: 'L', t: '国内LOF' },
   { k: 'C', t: '现金管理' }
 ];
 var currentView = 'main';     // 'main' | 'market'
-var MV = 'A';                 // 当前市场：'A' 亚洲 / 'E' 欧美 / 'L' 国内LOF / 'C' 现金管理
+var MV = 'A';                 // 当前市场：A 亚洲 / E 欧美 / G 黄金原油 / F 商品期货 / L 境内LOF / C 现金管理
 var marketData = {};          // {A: payload, A|LOF: payload, ...}
 var mktSort = { key: 'amount_wan', desc: true };
 var mktCompact = true;
@@ -1051,6 +1057,8 @@ var COL_LOF_BASE = [
   { k: 'static_prem', t: 'T-1 估值溢价', ttl: '(现价 − T-1 静态估值) ÷ T-1 静态估值。', f: function (v) { return (v === null || v === undefined) ? '<span class="muted">—</span>' : '<span class="' + px(v) + '">' + pf(v) + '</span>'; } },
   { k: 'idx_price', t: '指数价', ttl: '跟踪指数实时点位。', f: function (v) { return (typeof v === 'string') ? '<span style="color:#e0533d;font-weight:600;">' + esc(v) + '</span>' : nf(v, 2); } },
   { k: 'idx_chg', t: '指数涨幅', ttl: '跟踪指数的实时涨跌幅（实时估值用）。', f: function (v) { return (v === null || v === undefined) ? '<span class="muted">—</span>' : '<span class="' + px(v) + '">' + pf(v) + '</span>'; } },
+  // （F 专属「驱动列」在 renderMarket 动态注入，见 F_DRIVER_COL；COL_LOF_BASE 内不放，
+  //   避免 L/C/G 市场误渲染）
   { k: 'index_nm', t: '指数名称', l: 1, f: function (v) { return esc(v || '—'); } },
   { k: 'sub_fee', t: '申购费率', f: function (v) { return esc(v || '—'); } },
   { k: 'sub_status', t: '申购状态', l: 1, f: function (v) { return esc(v || '—'); } },
@@ -1095,6 +1103,7 @@ function switchView(k) {
             : (MV === 'A') ? '亚洲市场（ETF + QDII亚洲LOF 混合）'
             : (MV === 'L') ? '国内 LOF'
             : (MV === 'G') ? '黄金原油（商品LOF，数据以 arbTest 为准）'
+            : (MV === 'F') ? '商品期货（估值引用 LOFarb，161226 白银 AG0 驱动）'
             : '现金管理';
     document.getElementById('mktTitle').textContent = ttl;
     syncTypeChecks();
@@ -1135,11 +1144,25 @@ function loadMarket(mkt, force) {
 
 function renderMarket() {
   var d = marketData[MV + '|' + (mktType || '')];
-  var isLof = (MV === 'L' || MV === 'C' || MV === 'G');
+  // 商品期货(F) 与 LOF 用同一套列（都含基金净值/静态估值/溢价等），故并入 isLof
+  var isLof = (MV === 'L' || MV === 'C' || MV === 'G' || MV === 'F');
+  // 商品期货(F) 专属「驱动列」：AG0 昨结算价（+ SI 交叉验证）。仅 F 市场注入。
+  var F_DRIVER_COL = { k: 'ag0_settlement', t: '驱动<br><span class="col-sub">AG0昨结算</span>', ttl: '上期所白银期货 AG0 上一交易日官方结算价（元/千克）。估值分母，由 LOFarb SSE 推流/新浪 nf_AG0 双源提供，ETFarb 引用不重算。盘中非交易时段实时价丢弃、昨结算价恒显示（东哥要求）。', cls: 'col-driver', f: function (v, r) {
+      if (v === null || v === undefined) return '<span class="muted">—</span>';
+      var si = r.si_val;
+      var siTxt = (si === null || si === undefined) ? '' : (' / SI ' + nf(si, 4));
+      return nf(v, 1) + '<span class="col-driver-sub">' + siTxt + '</span>';
+  } };
   var cols = (mktCompact ? (isLof ? COL_LOF_BASE : COL_BASE)
                          : (isLof ? COL_LOF_BASE.concat(COL_EXTRA) : COL_BASE.concat(COL_EXTRA)));
   // 东哥 2026-10-08：黄金原油删「净值涨幅」列（没啥用）。国内LOF/现金管理保留。
   if (MV === 'G') cols = cols.filter(function (c) { return c.k !== 'nav_chg_pct'; });
+  // 商品期货(F)：在「指数涨幅」列后插入驱动列。
+  if (MV === 'F') {
+    var _idx = -1;
+    for (var _ci = 0; _ci < cols.length; _ci++) if (cols[_ci].k === 'idx_chg') { _idx = _ci; break; }
+    cols.splice(_idx >= 0 ? _idx + 1 : cols.length, 0, F_DRIVER_COL);
+  }
   // 名称统一（东哥 10-05 拍板）：基金公司发布的叫净值——QDII欧美=T-2 净值、亚洲(日本/港股通)=T-1 净值；
   //   我们自算的叫「T-1 静态估值」。主看板(全市场混合)与国内LOF/现金管理不带前缀。
   if (!isLof) {
