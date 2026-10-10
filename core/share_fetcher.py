@@ -185,14 +185,17 @@ class ShareFetcher:
                 new = float(raw_new) if raw_new not in ("", "-", "—") else None
             except ValueError:
                 new = None
+            # [AI-2026-10-09] 打 writer 标识，供事后追查"这行 shares 是谁写的"（jsl 快照批量路径）
             c.execute(
-                """INSERT INTO unified_fund_history (fund_code, date, shares, shares_added, source, fetched_at)
-                   VALUES (?,?,?,?,?,?)
+                """INSERT INTO unified_fund_history (fund_code, date, shares, shares_added, source, fetched_at, writer)
+                   VALUES (?,?,?,?,?,?,?)
                    ON CONFLICT(fund_code, date) DO UPDATE SET
                      shares=excluded.shares, shares_added=excluded.shares_added,
-                     source=excluded.source, fetched_at=excluded.fetched_at""",
+                     source=excluded.source, fetched_at=excluded.fetched_at,
+                     writer=excluded.writer""",
                 (code, date, pre, new, "jsl_snapshot",
-                 datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+                 datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                 "etfarb:share_fetcher.jsl_snapshot"))
             n += 1
         c.commit()
         c.close()
