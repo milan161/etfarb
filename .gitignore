@@ -83,3 +83,8 @@ dist/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# --- [AI-2026-10-11 东哥定] 废弃代码禁留：不需要的**直接删除**，勿用 _deprecated/ 归档 ---
+#   归档 = 把废弃/涉密代码一起发布到公开仓。
+**/_deprecated/
+**/_archived/
